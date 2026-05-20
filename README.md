@@ -30,8 +30,7 @@ water-segmentation/
 │   └── demo.ipynb            # End-to-end pipeline demo
 ├── .github/
 │   └── workflows/
-│       └── lint.yml          # CI: lint + unit tests + Docker build & push
-├── .dockerignore             # Excludes cache/logs from Docker context
+│       └── lint.yml          # CI: lint + unit tests
 ├── Dockerfile
 ├── requirements.txt
 └── README.md
@@ -74,28 +73,7 @@ python -c "from src.inference.inference import export_onnx; export_onnx()"
 python -m src.inference.inference path/to/image.jpg --backend onnx
 ```
 
-## Docker
 
-### Local Build
-```bash
-docker build -t water-segmentation:latest .
-# ONNX model is exported at build time — no runtime overhead.
-```
-
-### Run
-```bash
-docker run -v $(pwd)/data:/data -v $(pwd)/results:/app/results \
-    water-segmentation:latest /data/sample.jpg --backend onnx --out /app/results/mask.png
-```
-
-### CI Build (automated)
-On every push to `master`, GitHub Actions runs lint + tests, then builds and pushes the image to Docker Hub:
-
-```bash
-docker pull $DOCKER_USERNAME/water-segmentation:latest
-```
-
-Set `DOCKER_USERNAME` and `DOCKER_PASSWORD` secrets in your repo settings to enable this.
 
 ## Unit Tests
 ```bash
@@ -112,17 +90,10 @@ pytest src/training/tests.py -v
 
 ## Model Weights
 
-`best_model.pth` (~93 MB) and `model.onnx` (~93 MB) are not tracked in git (binary files exceed GitHub's recommended size). To obtain them:
+`best_model.pth` (~93 MB) and `model.onnx` (~93 MB) are not tracked in git (binary files exceed GitHub's recommended size). Retrain to obtain them:
 
 ```bash
-# Option 1: Retrain from scratch
 python -m src.training.train
-
-# Option 2: Extract from Docker image
-id=$(docker create water-segmentation:latest)
-docker cp "$id:/app/best_model.pth" .
-docker cp "$id:/app/model.onnx" .
-docker rm "$id"
 ```
 
 ## Key Design Decisions
