@@ -1,32 +1,19 @@
-"""
-Training pipeline for water body segmentation.
-Tracks IOU, Accuracy, Precision, Recall, Loss via MLflow.
-"""
-import sys
-import os
+import sys, os, torch, mlflow, mlflow.pytorch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-import torch
 import torch.nn as nn
-import mlflow
-import mlflow.pytorch
 from contextlib import nullcontext
-from tqdm import tqdm
 from segmentation_models_pytorch.losses import DiceLoss
-
 from src.ingestion.dataset import get_loaders
 from src.training.model import get_model
 from src.training.utils import get_metrics
 
 torch.backends.cudnn.benchmark = True
 
-DEVICE     = "cuda" if torch.cuda.is_available() else "cpu"
-IMG_DIR    = "data/Images"
-MASK_DIR   = "data/Masks"
-EPOCHS     = 50
-LR         = 5e-5
-BATCH_SIZE = 8
-VAL_SPLIT  = 0.2
+DEVICE   = "cuda" if torch.cuda.is_available() else "cpu"
+IMG_DIR  = "data/Images"
+MASK_DIR = "data/Masks"
+EPOCHS, LR, BATCH_SIZE, VAL_SPLIT = 50, 5e-5, 8, 0.2
 
 bce_fn  = nn.BCEWithLogitsLoss()
 dice_fn = DiceLoss(mode="binary")
@@ -36,62 +23,44 @@ def criterion(preds, masks):
 
 
 def run_epoch(model, loader, optimizer=None):
-    """Single train or val epoch. Pass optimizer=None for validation."""
     training = optimizer is not None
     model.train() if training else model.eval()
-
     total_loss = 0
     total_metrics = {"iou": 0, "accuracy": 0, "precision": 0, "recall": 0}
-
     ctx = torch.enable_grad() if training else torch.no_grad()
     with ctx:
         for imgs, masks in loader:
-            imgs  = imgs.to(DEVICE)
-            masks = masks.to(DEVICE).float()
+            imgs, masks = imgs.to(DEVICE), masks.to(DEVICE).float()
             preds = model(imgs)
             loss  = criterion(preds, masks)
-
             if training:
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
             total_loss += loss.item()
             m = get_metrics(preds, masks)
             for k in total_metrics:
                 total_metrics[k] += m[k]
-
     n = len(loader)
     return total_loss / n, {k: v / n for k, v in total_metrics.items()}
 
 
 def train(lr=LR, batch_size=BATCH_SIZE, epochs=EPOCHS, log_mlflow=True):
-    train_loader, val_loader = get_loaders(
-        IMG_DIR, MASK_DIR, val_split=VAL_SPLIT, batch_size=batch_size
-    )
+    train_loader, val_loader = get_loaders(IMG_DIR, MASK_DIR, val_split=VAL_SPLIT, batch_size=batch_size)
     model     = get_model().to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-
-    best_iou   = 0
-    patience   = 10
-    no_improve = 0
+    best_iou, patience, no_improve = 0, 10, 0
 
     if log_mlflow:
         mlflow.set_experiment("water-segmentation")
     ctx = mlflow.start_run() if log_mlflow else nullcontext()
     with ctx:
         mlflow.log_params({
-            "model":       "unet-resnet34",
-            "loss":        "bce+dice",
-            "lr":          lr,
-            "batch_size":  batch_size,
-            "epochs":      epochs,
-            "optimizer":   "AdamW",
-            "dataset":     "kaggle-satellite-water-bodies",
-            "dataset_size": 2841,
-            "img_size":    "256x256",
-            "aug":         "hflip,vflip,rotate90,colorjitter",
+            "model": "unet-resnet34", "loss": "bce+dice", "lr": lr,
+            "batch_size": batch_size, "epochs": epochs, "optimizer": "AdamW",
+            "dataset": "kaggle-satellite-water-bodies", "dataset_size": 2841,
+            "img_size": "256x256", "aug": "hflip,vflip,rotate90,colorjitter",
         })
 
         for epoch in range(epochs):
@@ -100,34 +69,24 @@ def train(lr=LR, batch_size=BATCH_SIZE, epochs=EPOCHS, log_mlflow=True):
             scheduler.step()
 
             mlflow.log_metrics({
-                "train_loss":      train_loss,
-                "val_loss":        val_loss,
-                "val_iou":         val_m["iou"],
-                "val_accuracy":    val_m["accuracy"],
-                "val_precision":   val_m["precision"],
-                "val_recall":      val_m["recall"],
-                "train_iou":       train_m["iou"],
+                "train_loss": train_loss, "val_loss": val_loss,
+                "val_iou": val_m["iou"], "val_accuracy": val_m["accuracy"],
+                "val_precision": val_m["precision"], "val_recall": val_m["recall"],
+                "train_iou": train_m["iou"],
             }, step=epoch)
 
-            print(
-                f"Epoch {epoch+1:02d}/{epochs} | "
-                f"loss={train_loss:.4f} val_loss={val_loss:.4f} | "
-                f"IOU={val_m['iou']:.4f} Acc={val_m['accuracy']:.4f} "
-                f"Prec={val_m['precision']:.4f} Rec={val_m['recall']:.4f}"
-            )
+            print(f"Epoch {epoch+1:02d}/{epochs} | loss={train_loss:.4f} val_loss={val_loss:.4f} | IOU={val_m['iou']:.4f} Acc={val_m['accuracy']:.4f} Prec={val_m['precision']:.4f} Rec={val_m['recall']:.4f}")
 
             if val_m["iou"] > best_iou:
-                best_iou   = val_m["iou"]
-                no_improve = 0
+                best_iou, no_improve = val_m["iou"], 0
                 torch.save(model.state_dict(), "best_model.pth")
                 mlflow.pytorch.log_model(model, "model")
-                print(f"  -> Best model saved (IOU={best_iou:.4f})")
+                print(f"saved (IOU={best_iou:.4f})")
             else:
                 no_improve += 1
                 if no_improve >= patience:
-                    print(f"Early stopping. Best IOU: {best_iou:.4f}")
+                    print(f"Early stop. Best IOU: {best_iou:.4f}")
                     break
-
     return best_iou
 
 

@@ -1,13 +1,4 @@
-"""
-Data ingestion pipeline for water body segmentation.
-- Training: resize to 256x256 + augmentation
-- Inference: tiling support for large rasters
-"""
-
-import os
-import cv2
-import numpy as np
-import torch
+import os, cv2, numpy as np, torch
 from torch.utils.data import Dataset, DataLoader
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -20,7 +11,7 @@ class WaterDataset(Dataset):
         self.transform = transform
         self.images    = sorted(os.listdir(img_dir))
         self.masks     = sorted(os.listdir(mask_dir))
-        assert len(self.images) == len(self.masks), "Image/mask count mismatch"
+        assert len(self.images) == len(self.masks)
 
     def __len__(self):
         return len(self.images)
@@ -29,18 +20,13 @@ class WaterDataset(Dataset):
         img  = cv2.imread(os.path.join(self.img_dir,  self.images[idx]))
         img  = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         mask = cv2.imread(os.path.join(self.mask_dir, self.masks[idx]), cv2.IMREAD_GRAYSCALE)
-
         img  = cv2.resize(img,  (256, 256))
         mask = cv2.resize(mask, (256, 256), interpolation=cv2.INTER_NEAREST)
-
-        # >200 threshold removes JPEG compression artifacts in masks
         mask = (mask > 200).astype(np.float32)
-
         if self.transform:
             aug  = self.transform(image=img, mask=mask)
             img  = aug["image"]
             mask = aug["mask"]
-
         return img, mask.unsqueeze(0).float()
 
 
@@ -61,15 +47,12 @@ def get_transforms(train=True):
 
 
 def get_loaders(img_dir, mask_dir, val_split=0.2, batch_size=8):
-    # Separate instances — avoids shared transform reference bug
     train_ds = WaterDataset(img_dir, mask_dir, transform=get_transforms(train=True))
     val_ds   = WaterDataset(img_dir, mask_dir, transform=get_transforms(train=False))
-
     n       = len(train_ds)
     val_n   = int(n * val_split)
     train_n = n - val_n
-
-    torch.manual_seed(42)  # reproducible split
+    torch.manual_seed(42)
     indices = torch.randperm(n)
 
     train_ds = torch.utils.data.Subset(train_ds, indices[:train_n])
@@ -82,12 +65,7 @@ def get_loaders(img_dir, mask_dir, val_split=0.2, batch_size=8):
     return train_loader, val_loader
 
 
-# ---------------------------------------------------------------------------
-# Tiling utilities — used only at inference on large rasters
-# ---------------------------------------------------------------------------
-
 def tile_image(image, tile_size=256, overlap=32):
-    """Split a large image into overlapping tiles. Returns tiles + metadata."""
     h, w   = image.shape[:2]
     stride = tile_size - overlap
     tiles, coords = [], []
@@ -104,7 +82,6 @@ def tile_image(image, tile_size=256, overlap=32):
 
 
 def merge_tiles(tile_masks, coords, orig_h, orig_w):
-    """Reconstruct full mask from tile predictions using averaging."""
     canvas  = np.zeros((orig_h, orig_w), dtype=np.float32)
     weights = np.zeros((orig_h, orig_w), dtype=np.float32)
     for mask, (y1, x1, y2, x2) in zip(tile_masks, coords):
