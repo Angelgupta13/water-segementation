@@ -30,7 +30,8 @@ water-segmentation/
 │   └── demo.ipynb            # End-to-end pipeline demo
 ├── .github/
 │   └── workflows/
-│       └── lint.yml          # CI: lint + unit tests
+│       └── lint.yml          # CI: lint + unit tests + Docker build & push
+├── .dockerignore             # Excludes cache/logs from Docker context
 ├── Dockerfile
 ├── requirements.txt
 └── README.md
@@ -74,14 +75,27 @@ python -m src.inference.inference path/to/image.jpg --backend onnx
 ```
 
 ## Docker
-```bash
-# Build (exports ONNX model at build time)
-docker build -t water-seg .
 
-# Run
-docker run -v $(pwd)/data:/data -v $(pwd)/results:/app/results \
-    water-seg /data/images/sample.jpg --backend onnx --out /app/results/mask.png
+### Local Build
+```bash
+docker build -t water-segmentation:latest .
+# ONNX model is exported at build time — no runtime overhead.
 ```
+
+### Run
+```bash
+docker run -v $(pwd)/data:/data -v $(pwd)/results:/app/results \
+    water-segmentation:latest /data/sample.jpg --backend onnx --out /app/results/mask.png
+```
+
+### CI Build (automated)
+On every push to `master`, GitHub Actions runs lint + tests, then builds and pushes the image to Docker Hub:
+
+```bash
+docker pull $DOCKER_USERNAME/water-segmentation:latest
+```
+
+Set `DOCKER_USERNAME` and `DOCKER_PASSWORD` secrets in your repo settings to enable this.
 
 ## Unit Tests
 ```bash

@@ -1,41 +1,19 @@
-<<<<<<< HEAD
 data/
 mlflow.db
 __pycache__/
 *.pyc
+*.pyo
+build/
+dist/
+wheels/
+*.egg-info
+.venv
 results/
 notebooks/.ipynb_checkpoints/
 .env
 mlruns/
 best_model.pth
 model.onnx
-=======
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-
-# Training outputs
-best_model.pth
 train_output.log
-
-# MLflow
-mlflow.db
-mlruns/
-
-# Data (too large for git)
-data/
-
-# Results
-results/
-
-# IDE
 .vscode/
 .idea/
->>>>>>> e7e3737372ee687703059211d7d5a7edf8cb0900
