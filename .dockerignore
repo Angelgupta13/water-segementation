@@ -1,8 +1,7 @@
-data/
-notebooks/
-results/
+__pycache__
+.git
+.gitignore
+mlruns
 mlflow.db
-__pycache__/
-*.pyc
-.git/
-.env
+notebooks
+*.md
