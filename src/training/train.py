@@ -15,6 +15,7 @@ IMG_DIR  = "data/Images"
 MASK_DIR = "data/Masks"
 EPOCHS, LR, BATCH_SIZE, VAL_SPLIT = 50, 5e-5, 8, 0.2
 
+# BCE handles pixel accuracy, Dice optimizes overlap directly
 bce_fn  = nn.BCEWithLogitsLoss()
 dice_fn = DiceLoss(mode="binary")
 
@@ -23,6 +24,7 @@ def criterion(preds, masks):
 
 
 def run_epoch(model, loader, optimizer=None):
+    """One pass over the data. Trains if optimizer is provided, otherwise evaluates."""
     training = optimizer is not None
     model.train() if training else model.eval()
     total_loss = 0
@@ -46,6 +48,7 @@ def run_epoch(model, loader, optimizer=None):
 
 
 def train(lr=LR, batch_size=BATCH_SIZE, epochs=EPOCHS, log_mlflow=True):
+    """Full training loop with MLflow tracking, early stopping, and best-model checkpointing."""
     train_loader, val_loader = get_loaders(IMG_DIR, MASK_DIR, val_split=VAL_SPLIT, batch_size=batch_size)
     model     = get_model().to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)

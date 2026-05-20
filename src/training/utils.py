@@ -2,6 +2,7 @@ import torch
 
 
 def get_metrics(preds, masks, threshold=0.5):
+    """Returns dict of IOU, accuracy, precision, recall from logits vs binary masks."""
     preds = (torch.sigmoid(preds) > threshold).float()
     masks = masks.float()
     tp = (preds * masks).sum()

@@ -30,7 +30,8 @@ water-segmentation/
 │   └── demo.ipynb            # End-to-end pipeline demo
 ├── .github/
 │   └── workflows/
-│       └── lint.yml          # CI: lint + unit tests
+│       └── lint.yml          # CI: lint, unit tests, Docker build & push
+├── .dockerignore
 ├── Dockerfile
 ├── requirements.txt
 └── README.md
@@ -74,6 +75,22 @@ python -m src.inference.inference path/to/image.jpg --backend onnx
 ```
 
 
+## Docker
+
+Build (exports ONNX model at build time):
+
+```bash
+docker build -t water-segmentation:latest .
+```
+
+Run inference on an image:
+
+```bash
+docker run -v $(pwd)/data:/data -v $(pwd)/results:/app/results \
+    water-segmentation:latest /data/sample.jpg --backend onnx --out /app/results/mask.png
+```
+
+The CI workflow builds and pushes the image to Docker Hub on every master push. Set `DOCKER_USERNAME` and `DOCKER_PASSWORD` secrets in your repo settings to enable this.
 
 ## Unit Tests
 ```bash

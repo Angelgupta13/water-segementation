@@ -1,3 +1,4 @@
+"""Hyperparameter search over 3 configurations: lr=1e-4,5e-5,1e-5 and batch_size=8,8,16."""
 import sys, os, mlflow
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.training.train import train

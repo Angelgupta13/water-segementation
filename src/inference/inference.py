@@ -1,3 +1,5 @@
+"""ONNX export + tiled inference with PyTorch and ONNX backends. Supports large raster inputs via sliding-window tiling."""
+
 import os, sys, time, logging, argparse, cv2, numpy as np, torch, onnxruntime as ort
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -17,6 +19,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def export_onnx(weights_path="best_model.pth", onnx_path="model.onnx"):
+    """Export trained PyTorch model to ONNX with dynamic batch axis."""
     model = get_model()
     model.load_state_dict(torch.load(weights_path, map_location="cpu"))
     model.eval()
@@ -58,6 +61,7 @@ def predict_tile_onnx(session, tile):
 def predict(img_path, out_path=None, backend="onnx",
             weights_path="best_model.pth", onnx_path="model.onnx",
             tile_size=256, overlap=32):
+    """Run full inference pipeline: load image, tile, predict per tile, merge, save mask."""
     t0 = time.time()
     img = cv2.imread(img_path)
     if img is None:

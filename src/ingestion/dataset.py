@@ -5,6 +5,7 @@ from albumentations.pytorch import ToTensorV2
 
 
 class WaterDataset(Dataset):
+    """Loads image-mask pairs, applies transforms, resizes to 256x256."""
     def __init__(self, img_dir, mask_dir, transform=None):
         self.img_dir   = img_dir
         self.mask_dir  = mask_dir
@@ -31,6 +32,7 @@ class WaterDataset(Dataset):
 
 
 def get_transforms(train=True):
+    """Training: flip/rotate/color jitter + normalize. Val: normalize only."""
     if train:
         return A.Compose([
             A.HorizontalFlip(p=0.5),
@@ -47,6 +49,7 @@ def get_transforms(train=True):
 
 
 def get_loaders(img_dir, mask_dir, val_split=0.2, batch_size=8):
+    """Returns train/val DataLoaders with deterministic random split."""
     train_ds = WaterDataset(img_dir, mask_dir, transform=get_transforms(train=True))
     val_ds   = WaterDataset(img_dir, mask_dir, transform=get_transforms(train=False))
     n       = len(train_ds)
@@ -66,6 +69,7 @@ def get_loaders(img_dir, mask_dir, val_split=0.2, batch_size=8):
 
 
 def tile_image(image, tile_size=256, overlap=32):
+    """Split large image into overlapping tiles for inference."""
     h, w   = image.shape[:2]
     stride = tile_size - overlap
     tiles, coords = [], []
@@ -82,6 +86,7 @@ def tile_image(image, tile_size=256, overlap=32):
 
 
 def merge_tiles(tile_masks, coords, orig_h, orig_w):
+    """Blend overlapping tile predictions into a full-resolution mask."""
     canvas  = np.zeros((orig_h, orig_w), dtype=np.float32)
     weights = np.zeros((orig_h, orig_w), dtype=np.float32)
     for mask, (y1, x1, y2, x2) in zip(tile_masks, coords):
