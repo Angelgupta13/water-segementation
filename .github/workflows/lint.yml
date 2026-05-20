@@ -1,0 +1,25 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install flake8 pytest torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install segmentation-models-pytorch albumentations opencv-python-headless numpy
+
+      - name: Lint
+        run: flake8 src/ --max-line-length=120 --ignore=E402,W503
+
+      - name: Test
+        run: pytest src/training/tests.py -v
