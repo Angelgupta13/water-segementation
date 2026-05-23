@@ -5,8 +5,8 @@ Binary segmentation of water bodies from Sentinel-2 satellite imagery using U-Ne
 ## Quick Start
 
 ```bash
-git clone https://github.com/Angelgupta13/water-segementation.git
-cd water-segementation
+git clone https://github.com/Angelgupta13/water-segmentation.git
+cd water-segmentation
 git lfs pull
 pip install -e .
 
@@ -25,6 +25,14 @@ curl http://localhost:8000/health
 | Report & Presentation | `REPORT.md` + `presentation.pptx` + `notebooks/eda.ipynb` + `notebooks/demo.ipynb` |
 | Working Demo | `POST /predict` endpoint + `notebooks/demo.ipynb` |
 
+## Pipeline
+
+```
+Data (Kaggle) → Preprocess (256x256, ImageNet norm, aug) → Train (U-Net + ResNet34)
+→ MLflow tracking (metrics/epoch, model registry) → ONNX export
+→ FastAPI inference server → Docker container → CI/CD (GitHub Actions → Docker Hub)
+```
+
 ## Dataset
 
 [Kaggle — Satellite Images of Water Bodies](https://www.kaggle.com/datasets/franciscoescobar/satellite-images-of-water-bodies)
@@ -39,18 +47,39 @@ Inference: sliding-window tiling (256x256 tiles, 32px overlap) for memory effici
 ## Project Structure
 
 ```
-src/
- ingestion/    WaterDataset, transforms, tiling/merge
- training/     model.py, train.py, utils.py, hypertune.py, tests.py
- inference/    api.py (FastAPI), inference.py (ONNX + CLI)
-tests/
- test_api.py         9 API endpoint tests
- test_mlflow.py      7 MLflow tracking tests (local DB)
-training/tests.py    6 training unit tests
-scripts/
- download_data.py    Kaggle downloader
- test_docker.ps1     Docker lifecycle test
- make_pptx.py        Presentation generator
+water-segmentation-project/
+├── src/
+│   ├── ingestion/
+│   │   └── dataset.py           # WaterDataset, transforms, tiling/merge, dataloaders
+│   ├── training/
+│   │   ├── model.py             # U-Net + ResNet34 (21M params)
+│   │   ├── train.py             # Training loop, MLflow tracking, early stopping
+│   │   ├── tests.py             # 6 unit tests
+│   │   ├── utils.py             # get_metrics, iou_score
+│   │   └── hypertune.py         # Grid search (6 configs)
+│   └── inference/
+│       ├── api.py               # FastAPI server
+│       └── inference.py         # ONNX/PyTorch inference, CLI entry point
+├── tests/
+│   ├── conftest.py              # Empty (cleaned)
+│   ├── test_api.py              # 9 API tests
+│   └── test_mlflow.py           # 7 MLflow tests (needs local DB)
+├── scripts/
+│   ├── download_data.py         # Kaggle dataset downloader
+│   └── test_docker.ps1          # Docker lifecycle test
+├── notebooks/
+│   ├── eda.ipynb                # Dataset exploration (401 lines)
+│   └── demo.ipynb               # End-to-end pipeline walkthrough (675 lines)
+├── .github/workflows/lint.yml   # CI: lint -> test -> Docker push
+├── Dockerfile                   # python:3.11-slim, ONNX baked in, HEALTHCHECK
+├── docker-compose.yml           # API + MLflow server services
+├── pyproject.toml               # Package config, [test] extras, CLI entry point
+├── requirements.txt             # 13 deps, mlflow>=2.12.0
+├── REPORT.md                    # 11 sections, 216 lines
+├── presentation.pptx            # 8 slides, 5 embedded images, 5.3 MB
+├── model.onnx                   # 97 MB, Git LFS tracked
+├── .gitattributes               # LFS: *.onnx, *.pth
+└── .gitignore                   # mlflow.db, best_model.pth, ~$*.pptx, data/
 ```
 
 ## Setup
@@ -86,6 +115,14 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 
 Precision > Recall across all runs — model under-segments, which is the safer bias for flood mapping (fewer false positives).
 
+### Inference Optimizations
+
+| Backend | Device | Latency/tile | Speedup |
+|---|---|---|---|
+| PyTorch | CPU | ~120 ms | 1.0x |
+| ONNX Runtime | CPU | ~55 ms | **2.2x** |
+| ONNX Runtime | GPU | ~15 ms | 8.0x |
+
 ### Failure Analysis
 
 | Failure | Cause |
@@ -107,8 +144,6 @@ python -m src.inference.inference image.jpg --backend pytorch
 curl -X POST http://localhost:8000/predict -F "file=@image.jpg" -F "tta=true" -o mask.png
 ```
 
-**Optimizations:** ONNX Runtime (~2.2x CPU speedup), sliding-window tiling, TTA (horizontal flip), multi-backend fallback.
-
 ## Docker
 
 ```bash
@@ -119,6 +154,13 @@ docker run -d -p 8000:8000 water-seg
 # docker-compose (API + MLflow server)
 docker-compose up -d
 ```
+
+## Security
+
+- **Path traversal**: `tempfile.NamedTemporaryFile` with safe suffix
+- **Upload limit**: 100 MB cap returns HTTP 413
+- **Rate limiter**: 60 req/min/IP sliding window, HTTP 429 with `Retry-After`, periodic IP eviction (300s)
+- **Thread safety**: `threading.Lock` wraps all `MODEL_CACHE` reads/writes
 
 ## CI/CD
 
@@ -135,9 +177,16 @@ pytest tests/test_mlflow.py -v -m mlflow              # 7 tests (needs local mlf
 
 | Practice | Implementation |
 |---|---|
-| Version control | Git + Git LFS (model.onnx) |
-| Experiment tracking | MLflow (params, metrics, artifacts per epoch) |
-| Model registry | MLflow: `water-segmentation-unet` v1 |
+| Version control | Git + Git LFS (model.onnx), conventional commits |
+| Experiment tracking | MLflow (params, metrics, artifacts per epoch, 6 runs) |
+| Model registry | MLflow: `water-segmentation-unet` v1, `serialization_format="pt2"` |
 | Data versioning | SHA256 dataset hash logged per run |
 | CI/CD | GitHub Actions: lint -> test -> Docker push |
 | Security | Path traversal protection, 100 MB cap, rate limiter, thread-safe cache |
+
+## CI Status
+
+- Lint clean: `flake8 src/ tests/` → 0 errors
+- 15/15 tests pass: 6 training + 9 API
+- Docker image: `angelgupta/water-segmentation:latest` on Docker Hub
+- All deliverables tracked: code, report, presentation, notebooks, container

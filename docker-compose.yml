@@ -29,7 +29,7 @@ services:
       - ./mlflow.db:/mlflow/mlflow.db
     entrypoint: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow/mlflow.db --default-artifact-root /mlflow/mlruns
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/2.0/mlflow/experiments/search"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/2.0/mlflow/experiments/search')"]
       interval: 10s
       timeout: 5s
       retries: 3

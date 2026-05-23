@@ -183,7 +183,7 @@ jupyter notebook notebooks/demo.ipynb
 | Model registry | MLflow Model Registry: `water-segmentation-unet` v1 registered with `serialization_format="pt2"`. Model downloadable via `models:/water-segmentation-unet/latest`. |
 | Data versioning | SHA256 hash of all dataset file names + first 1KB of each image logged as `dataset_hash` per run for reproducibility. |
 | CI/CD | GitHub Actions on push to master: `flake8` lint -> `pytest` (15 tests) -> Docker build & push to Docker Hub (`angelgupta/water-segmentation:latest` + commit SHA). |
-| Containerization | `Dockerfile`: multi-stage build, Python 3.11-slim, OpenCV dependencies, ONNX model baked in, HEALTHCHECK every 10s with 15s start period. `docker-compose.yml` includes API + MLflow server services. |
+| Containerization | `Dockerfile`: Python 3.11-slim, OpenCV dependencies, ONNX model baked in, HEALTHCHECK every 10s with 15s start period. `docker-compose.yml` includes API + MLflow server services. |
 | Security | Path traversal protection via `tempfile.NamedTemporaryFile`. 100 MB upload size limit (returns 413). 60 req/min/IP sliding-window rate limiter (returns 429 with Retry-After). Thread-safe model cache via `threading.Lock`. |
 | CLI entry point | `water-seg` command registered via `[project.scripts]` in `pyproject.toml` for `python -m`-free usage. |
 
