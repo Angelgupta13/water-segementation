@@ -16,3 +16,4 @@ best_model.pth
 train_output.log
 .vscode/
 .idea/
+~$*.pptx
