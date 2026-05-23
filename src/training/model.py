@@ -1,7 +1,8 @@
+import torch.nn as nn
 import segmentation_models_pytorch as smp
 
 
-def get_model():
+def get_model() -> nn.Module:
     """U-Net with ResNet34 encoder pretrained on ImageNet. Outputs single-channel logits."""
     model = smp.Unet(
         encoder_name="resnet34",

@@ -1,7 +1,9 @@
+from typing import Dict
+
 import torch
 
 
-def get_metrics(preds, masks, threshold=0.5):
+def get_metrics(preds: torch.Tensor, masks: torch.Tensor, threshold: float = 0.5) -> Dict[str, float]:
     """Returns dict of IOU, accuracy, precision, recall from logits vs binary masks."""
     preds = (torch.sigmoid(preds) > threshold).float()
     masks = masks.float()
@@ -10,12 +12,12 @@ def get_metrics(preds, masks, threshold=0.5):
     fn = ((1 - preds) * masks).sum()
     tn = ((1 - preds) * (1 - masks)).sum()
     return {
-        "iou":       (tp / (tp + fp + fn + 1e-8)).item(),
-        "accuracy":  ((tp + tn) / (tp + tn + fp + fn + 1e-8)).item(),
+        "iou": (tp / (tp + fp + fn + 1e-8)).item(),
+        "accuracy": ((tp + tn) / (tp + tn + fp + fn + 1e-8)).item(),
         "precision": (tp / (tp + fp + 1e-8)).item(),
-        "recall":    (tp / (tp + fn + 1e-8)).item(),
+        "recall": (tp / (tp + fn + 1e-8)).item(),
     }
 
 
-def iou_score(preds, masks, threshold=0.5):
+def iou_score(preds: torch.Tensor, masks: torch.Tensor, threshold: float = 0.5) -> float:
     return get_metrics(preds, masks, threshold)["iou"]

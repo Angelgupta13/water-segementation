@@ -13,7 +13,7 @@ notebooks/.ipynb_checkpoints/
 .env
 mlruns/
 best_model.pth
-model.onnx
 train_output.log
 .vscode/
 .idea/
+presentation.pptx
